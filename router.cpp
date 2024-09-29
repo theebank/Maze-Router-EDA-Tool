@@ -5,32 +5,32 @@
 #include <thread>
 #include <vector>
 #include <string>
+#include <queue>
 
 using namespace ::std;
 
 class Grid
-//Graph D.S. to represent tracks
+// Graph D.S. to represent tracks
 {
-    public:
-        vector<vector<string>> adjacencyMatrix; // adjacency matrix for track segments
-        /*
-            No Connection - 'X'
-            Connection but unused (Available) - 'A'
-            Connection and used (Unavailable) - 'U'
-            Target of search/expansion - 'T'
-            Available and adjacent to driver - 'O'
-        */
-        int N; // NxN grid (N Vertices)
-        int W; // W Channels
-        vector<vector<int> > i_connections;//input connections
+public:
+    vector<vector<string>> adjacencyMatrix; // adjacency matrix for track segments
+    /*
+        No Connection - 'X'
+        Connection but unused (Available) - 'A'
+        Connection and used (Unavailable) - 'U'
+        Target of search/expansion - 'T'
+        Available and adjacent to driver - 'O'
+    */
+    int N;                             // NxN grid (N Vertices)
+    int W;                             // W Channels
+    vector<vector<int>> i_connections; // input connections
 
-        void initializeGraph();
-        void takeTrackSegment(int block1x, int block1y, int block2x, int block2y, int tracknum);
-        void processFile(const string &path);
-        void processConnection(vector<int> connection);
-        void printInputFile();
-        void printMatrix();
-            
+    void initializeGraph();
+    void takeTrackSegment(int block1x, int block1y, int block2x, int block2y, int tracknum);
+    void processFile(const string &path);
+    void processConnection(vector<int> connection);
+    void printInputFile();
+    void printMatrix();
 };
 
 int main()
@@ -40,7 +40,7 @@ int main()
     g.processFile("/Users/theebankumaresan/Documents/School/ECE1387/lab1/tests/cct1.txt");
 
     g.printInputFile();
-    
+
     g.initializeGraph();
 
     // g.takeTrackSegment(0,0,0,1,3);
@@ -67,7 +67,7 @@ void Grid::initializeGraph()
             if (j > 0)
             {
                 int left = curr - 1;
-                adjacencyMatrix[curr][left] = string(W,'A');
+                adjacencyMatrix[curr][left] = string(W, 'A');
                 adjacencyMatrix[left][curr] = string(W, 'A');
             }
             // right connection
@@ -107,7 +107,7 @@ void Grid::takeTrackSegment(int block1x, int block1y, int block2x, int block2y, 
         return;
     }
     string temp = adjacencyMatrix[block1][block2];
-    temp[tracknum-1] = 'U';
+    temp[tracknum - 1] = 'U';
 
     adjacencyMatrix[block1][block2] = temp;
     adjacencyMatrix[block2][block1] = temp;
@@ -148,8 +148,10 @@ void Grid::processFile(const string &path)
 
 void Grid::processConnection(vector<int> connection)
 {
-    vector<int> driverPin = {connection[0],connection[1],connection[2]};
-    vector<int> loadPin = {connection[3],connection[4],connection[5]};
+    vector<int> driverPin = {connection[0], connection[1], connection[2]};
+    vector<int> loadPin = {connection[3], connection[4], connection[5]};
+    queue<vector<int>> expansionList = queue<vector<int>>(); // {Block1, Block2, cost}
+    string track;
     // mark available track segments adjacent to load as 'T'
     /*
         Find connected group of track
@@ -157,8 +159,7 @@ void Grid::processConnection(vector<int> connection)
         Switch box to the bottom left of block would have same x,y coords as the connection block
 
     */
-   
-    string track;
+
     int block1, block2;
     if (loadPin[2] == 1)
     { // Check down track
@@ -169,29 +170,28 @@ void Grid::processConnection(vector<int> connection)
     else if (loadPin[2] == 2)
     { // Check left track
         block1 = ((loadPin[0]) * (N + 1)) + loadPin[1];
-        block2 = ((loadPin[0]+1) * (N + 1)) + loadPin[1];
+        block2 = ((loadPin[0] + 1) * (N + 1)) + loadPin[1];
         track = adjacencyMatrix[block1][block2];
     }
     else if (loadPin[2] == 3)
     { // Check up track
-        block1 = ((loadPin[0]+1) * (N + 1)) + loadPin[1];
-        block2 = ((loadPin[0] + 1) * (N + 1)) + loadPin[1]+1;
+        block1 = ((loadPin[0] + 1) * (N + 1)) + loadPin[1];
+        block2 = ((loadPin[0] + 1) * (N + 1)) + loadPin[1] + 1;
         track = adjacencyMatrix[block1][block2];
     }
-    if(loadPin[2]==2)
+    if (loadPin[2] == 2)
     { // Pin can only connect to W/2 odd tracks(1,3,5,etc);
         for (int i = 1; i < track.length(); i += 2)
         {
-            if (track[i] == 'A') 
+            if (track[i] == 'A')
             {
                 track[i] = 'T';
                 adjacencyMatrix[block1][block2] = track;
                 adjacencyMatrix[block2][block1] = track;
             }
-
         }
-    }    
-    else if(loadPin[2]==1 || loadPin[2]==3)
+    }
+    else if (loadPin[2] == 1 || loadPin[2] == 3)
     { // Pins 1 and 3 can only connect to W/2 even tracks(0,2,4,etc);
         for (int i = 0; i < track.length(); i += 2)
         {
@@ -203,11 +203,58 @@ void Grid::processConnection(vector<int> connection)
             }
         }
     }
-    //Mark available track segments adjacent to driver as O
-    int block1 = ((driverPin[0]) * (N + 1)) + driverPin[1] + 1;
-    int block2 = ((driverPin[0]+1) * (N+1)) + driverPin[1] +1;
-     
-    // then put these track segments on FIFO Q
+    // Mark available track segments adjacent to driver as O
+    block1 = ((driverPin[0]) * (N + 1)) + driverPin[1] + 1;
+    block2 = ((driverPin[0] + 1) * (N + 1)) + driverPin[1] + 1;
+    track = adjacencyMatrix[block1][block2];
+    for (int i = 0; i < track.length(); i++)
+    {
+        if (track[i] == 'A')
+        {
+            track[i] = 'O';
+            adjacencyMatrix[block1][block2] = track;
+            adjacencyMatrix[block2][block1] = track;
+            // then put these track segments on FIFO Q
+            expansionList.push({block1, block2, 0});
+        }
+    }
+    int jBlock1, jBlock2, jcurrBlock;
+    int jLabel;
+    while (!expansionList.empty())
+    {
+        // pop seg j from fifo
+        vector<int> segmentJ = expansionList.front();
+
+        // for each seg k that connects to j thru switch
+        for (int i = 0; i < 2; i++)
+        {
+            jcurrBlock = segmentJ[i];
+            if ((jcurrBlock % (N + 1)) != 0)
+            { // check if along left column
+            }
+            if (((jcurrBlock + 1) % (N + 1)) != 0)
+            { // check if along right column
+            }
+            if (jcurrBlock < (N + 1))
+            { // check if along bottom row
+            }
+            if (jcurrBlock >= ((N + 1) * N))
+            { // check if along top row
+            }
+        }
+        // if k is target, exit while loop
+        // else if k unavailable or already landed ignore
+        // else
+        // label k with label (j) +=1
+        jLabel = segmentJ[2];
+        // put k on expansion list
+        expansionList.pop();
+    }
+    /*
+    If while loop ends without target being hit:
+        - some connection could not route
+        - start again with problem connection at front of loop
+    */
 }
 
 void Grid::printInputFile()
