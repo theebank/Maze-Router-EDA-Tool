@@ -28,7 +28,8 @@ public:
     void initializeGraph();
     void takeTrackSegment(int block1x, int block1y, int block2x, int block2y, int tracknum);
     void processFile(const string &path);
-    void processConnection(vector<int> connection);
+    bool processConnection(vector<int> connection);
+    void mazeRouter();
     void printInputFile();
     void printMatrix();
 };
@@ -45,9 +46,11 @@ int main()
 
     // g.takeTrackSegment(0,0,0,1,3);
 
-    g.processConnection(g.i_connections[0]);
+    // g.processConnection(g.i_connections[0]);
 
     g.printMatrix();
+
+    g.mazeRouter();
 
     return 0;
 }
@@ -146,7 +149,7 @@ void Grid::processFile(const string &path)
     infile.close();
 }
 
-void Grid::processConnection(vector<int> connection)
+bool Grid::processConnection(vector<int> connection)
 {
     vector<int> driverPin = {connection[0], connection[1], connection[2]};
     vector<int> loadPin = {connection[3], connection[4], connection[5]};
@@ -226,35 +229,85 @@ void Grid::processConnection(vector<int> connection)
         vector<int> segmentJ = expansionList.front();
 
         // for each seg k that connects to j thru switch
+        vector<vector<int>> ksegs;
         for (int i = 0; i < 2; i++)
         {
             jcurrBlock = segmentJ[i];
             if ((jcurrBlock % (N + 1)) != 0)
             { // check if along left column
+                ksegs.push_back({jcurrBlock, jcurrBlock - 1});
             }
             if (((jcurrBlock + 1) % (N + 1)) != 0)
             { // check if along right column
+                ksegs.push_back({jcurrBlock, jcurrBlock + 1});
             }
             if (jcurrBlock < (N + 1))
             { // check if along bottom row
+                ksegs.push_back({jcurrBlock, jcurrBlock - (N + 1)});
             }
             if (jcurrBlock >= ((N + 1) * N))
             { // check if along top row
+                ksegs.push_back({jcurrBlock, jcurrBlock + (N + 1)});
             }
         }
-        // if k is target, exit while loop
-        // else if k unavailable or already landed ignore
-        // else
-        // label k with label (j) +=1
-        jLabel = segmentJ[2];
-        // put k on expansion list
+        for (auto k : ksegs)
+        {
+            for (auto i : k)
+            {
+                if (i == 'T')
+                {
+                    // if k is target, exit while loop
+                    return true;
+                }
+                else if (i == 'U' || i != 'A')
+                {
+                    // else if k unavailable or already landed ignore
+                    continue;
+                }
+                else
+                {
+                    // else
+                    // label k with label (j) +=1
+                    // jLabel = segmentJ[2];
+                    // put k on expansion list
+                    expansionList.push({block1, block2, segmentJ[2] + 1});
+                }
+            }
+        }
         expansionList.pop();
     }
+    return false;
+
     /*
-    If while loop ends without target being hit:
-        - some connection could not route
-        - start again with problem connection at front of loop
+        If while loop ends without target hit:
+            - some connection could not route -> can try again with problem connection moved to front of list
+            - rip up and re-route
     */
+}
+
+void Grid::mazeRouter()
+{
+    int i = 0;
+    while (i < i_connections.size())
+    {
+        try
+        {
+            bool success = processConnection(i_connections[i]);
+            if (!success)
+            {
+                throw runtime_error("Connection could not route");
+            }
+            cout << "connection " << i << ", was successfully made." << endl;
+            i++;
+        }
+        catch (runtime_error e)
+        {
+            vector<int> failedConn = i_connections[i];
+            i_connections.erase(i_connections.begin() + i);
+            i_connections.insert(i_connections.begin(), failedConn);
+            i = 0;
+        }
+    }
 }
 
 void Grid::printInputFile()
