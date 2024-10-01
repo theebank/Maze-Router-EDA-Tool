@@ -27,9 +27,11 @@ public:
 
     void initializeGraph();
     void takeTrackSegment(int block1x, int block1y, int block2x, int block2y, int tracknum);
+    void takeTrackSegment(int block1, int block2, int tracknum);
     void processFile(const string &path);
     bool processConnection(vector<int> connection, int connectionnum);
     void mazeRouter();
+    void resetMatrix();
     void printInputFile();
     void printMatrix();
 };
@@ -49,11 +51,13 @@ int main()
     // g.processConnection(g.i_connections[0]);
 
     g.printMatrix();
-
     g.mazeRouter();
+    cout << "----------" << endl;
 
-    g.initializeGraph();
-    g.mazeRouter();
+    g.printMatrix();
+    g.resetMatrix();
+    cout << "----------" << endl;
+    g.printMatrix();
 
     return 0;
 }
@@ -119,6 +123,15 @@ void Grid::takeTrackSegment(int block1x, int block1y, int block2x, int block2y, 
     adjacencyMatrix[block2][block1] = temp;
 }
 
+void Grid::takeTrackSegment(int block1, int block2, int tracknum)
+{
+    string temp = adjacencyMatrix[block1][block2];
+    temp[tracknum - 1] = 'U';
+
+    adjacencyMatrix[block1][block2] = temp;
+    adjacencyMatrix[block2][block1] = temp;
+}
+
 void Grid::processFile(const string &path)
 {
 
@@ -165,24 +178,25 @@ bool Grid::processConnection(vector<int> connection, int connectionnum)
         Switch box to the bottom left of block would have same x,y coords as the connection block
 
     */
+    cout << loadPin[0] << ", " << loadPin[1] << ", " << (loadPin[1]) * (N + 1) + loadPin[0] << endl;
 
     int block1, block2;
     if (loadPin[2] == 1)
     { // Check down track
-        block1 = ((loadPin[0]) * (N + 1)) + loadPin[1];
-        block2 = ((loadPin[0]) * (N + 1)) + loadPin[1] + 1;
+        block1 = ((loadPin[1]) * (N + 1)) + loadPin[0];
+        block2 = ((loadPin[1]) * (N + 1)) + loadPin[0] + 1;
         track = adjacencyMatrix[block1][block2];
     }
     else if (loadPin[2] == 2)
     { // Check left track
-        block1 = ((loadPin[0]) * (N + 1)) + loadPin[1];
-        block2 = ((loadPin[0] + 1) * (N + 1)) + loadPin[1];
+        block1 = ((loadPin[1]) * (N + 1)) + loadPin[0];
+        block2 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0];
         track = adjacencyMatrix[block1][block2];
     }
     else if (loadPin[2] == 3)
     { // Check up track
-        block1 = ((loadPin[0] + 1) * (N + 1)) + loadPin[1];
-        block2 = ((loadPin[0] + 1) * (N + 1)) + loadPin[1] + 1;
+        block1 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0];
+        block2 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0] + 1;
         track = adjacencyMatrix[block1][block2];
     }
     if (loadPin[2] == 2)
@@ -230,34 +244,26 @@ bool Grid::processConnection(vector<int> connection, int connectionnum)
     {
         // pop seg j from fifo
         vector<int> segmentJ = expansionList.front();
-        cout << segmentJ[0] << ", " << segmentJ[1] << endl;
-
         // for each seg k that connects to j thru switch
         vector<vector<int>> ksegs;
         for (int i = 0; i < 2; i++)
         {
-
-            cout << "for each seg k that connects to j thru switch " << endl;
             jcurrBlock = segmentJ[i];
             if ((jcurrBlock % (N + 1)) != 0)
             { // check if along left column
                 ksegs.push_back({jcurrBlock, jcurrBlock - 1});
-                // cout << jcurrBlock << "," << jcurrBlock - 1 << endl;
             }
             if (((jcurrBlock + 1) % (N + 1)) != 0)
             { // check if along right column
                 ksegs.push_back({jcurrBlock, jcurrBlock + 1});
-                // cout << jcurrBlock << "," << jcurrBlock + 1 << endl;
             }
             if (jcurrBlock > (N + 1))
             { // check if along bottom row
                 ksegs.push_back({jcurrBlock, jcurrBlock - (N + 1)});
-                // cout << jcurrBlock << ",BOTTOM," << jcurrBlock - (N + 1) << endl;
             }
             if (jcurrBlock <= ((N + 1) * N))
             { // check if along top row
                 ksegs.push_back({jcurrBlock, jcurrBlock + (N + 1)});
-                // cout << jcurrBlock << "," << jcurrBlock + (N + 1) << endl;
             }
         }
         for (auto k : ksegs)
@@ -282,7 +288,7 @@ bool Grid::processConnection(vector<int> connection, int connectionnum)
                     // jLabel = segmentJ[2];
                     // put k on expansion list
                     expansionList.push({k[0], k[1], segmentJ[2] + 1});
-                    adjacencyMatrix[k[0]][k[1]][i] = segmentJ[2] + 1;
+                    // adjacencyMatrix[k[0]][k[1]][i] = segmentJ[2] + 1;
                 }
             }
         }
@@ -302,6 +308,7 @@ void Grid::mazeRouter()
     int i = 0;
     while (i < i_connections.size())
     {
+        cout << i_connections[i][0] << i_connections[i][1] << i_connections.size() << endl;
         initializeGraph();
         try
         {
@@ -311,6 +318,7 @@ void Grid::mazeRouter()
                 throw runtime_error("Connection could not route");
             }
             cout << "connection " << i << ", was successfully made." << endl;
+            return;
             i++;
         }
         catch (runtime_error e)
@@ -319,6 +327,28 @@ void Grid::mazeRouter()
             i_connections.erase(i_connections.begin() + i);
             i_connections.insert(i_connections.begin(), failedConn);
             i = 0;
+        }
+    }
+}
+
+void Grid::resetMatrix()
+{
+    for (int i = 0; i < adjacencyMatrix.size(); i++)
+    {
+        for (int j = 0; j < adjacencyMatrix[i].size(); j++)
+        {
+            for (int x = 0; x < adjacencyMatrix[i][j].size(); x++)
+            {
+                if (adjacencyMatrix[i][j][x] == 'X')
+                {
+                    continue;
+                }
+                if (adjacencyMatrix[i][j][x] == 'U')
+                {
+                    continue;
+                }
+                adjacencyMatrix[i][j][x] = 'A';
+            }
         }
     }
 }
