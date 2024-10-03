@@ -12,21 +12,21 @@
 #include "router.hpp"
 using namespace ::std;
 
-// int main()
-// {
-//     Grid g;
+int main()
+{
+    Grid g;
 
-//     g.processFile("/Users/theebankumaresan/Documents/School/ECE1387/lab1/tests/cct1.txt");
+    g.processFile("/Users/theebankumaresan/Documents/School/ECE1387/lab1/tests/cct1.txt");
 
-//     g.initializeGraph();
+    g.initializeGraph();
 
-//     g.printMatrix();
-//     g.mazeRouter();
-//     cout << "----------" << endl;
-//     g.printMatrix();
+    g.printMatrix();
+    g.mazeRouter();
+    cout << "----------" << endl;
+    g.printMatrix();
 
-//     return 0;
-// }
+    return 0;
+}
 
 void Grid::initializeGraph()
 {
@@ -93,14 +93,6 @@ void Grid::takeTrackSegment(int block1x, int block1y, int block2x, int block2y, 
 void Grid::takeFirstTrackSegment(int block1, int block2, int connectionNum, int segmentNum)
 {
     string temp = adjacencyMatrix[block1][block2];
-    // for (int i = 0; i < temp.length(); i++)
-    // {
-    //     if (temp[i] == '$')
-    //     {
-    //         temp[i] = '0' + connectionNum;
-    //         break;
-    //     }
-    // }
     temp[segmentNum] = '0' + connectionNum;
     adjacencyMatrix[block1][block2] = temp;
     adjacencyMatrix[block2][block1] = temp;
@@ -141,20 +133,19 @@ void Grid::processFile(const string &path)
 
 int Grid::processConnection(vector<int> connection, int connectionnum)
 {
-    if (currEven > W)
-    {
-        return -1;
-    }
-    if (currOdd > W)
-    {
-        return -1;
-    }
+
     vector<int> driverPin = {connection[0], connection[1], connection[2]};
     vector<int> loadPin = {connection[3], connection[4], connection[5]};
     queue<vector<int>> expansionList = queue<vector<int>>(); // {Block1, Block2, cost}
     set<vector<int>> visited = set<vector<int>>();
     vector<vector<pair<int, int>>> parents((N + 1) * (N + 1), vector<pair<int, int>>((N + 1) * (N + 1), {-1, -1}));
+    vector<vector<int>> costadjacencyMatrix = vector<vector<int>>((N + 1) * (N + 1), vector<int>((N + 1) * (N + 1), INT_MAX));
+    vector<vector<int>> mincostadjacencyMatrix = vector<vector<int>>((N + 1) * (N + 1), vector<int>((N + 1) * (N + 1), INT_MAX));
     string track;
+
+    int shortestcost = INT_MAX;
+    int tracknum = 0;
+
     // mark available track segments adjacent to load as 'T'
     /*
         Find connected group of track
@@ -191,10 +182,10 @@ int Grid::processConnection(vector<int> connection, int connectionnum)
             if (track[i] == '$')
             {
                 track[i] = 'T';
-                adjacencyMatrix[Lblock1][Lblock2] = track;
-                adjacencyMatrix[Lblock2][Lblock1] = track;
             }
         }
+        adjacencyMatrix[Lblock1][Lblock2] = track;
+        adjacencyMatrix[Lblock2][Lblock1] = track;
     }
     else if (loadPin[2] == 1 || loadPin[2] == 3)
     { // Pins 1 and 3 can only connect to W/2 even tracks(0,2,4,etc);
@@ -203,10 +194,10 @@ int Grid::processConnection(vector<int> connection, int connectionnum)
             if (track[i] == '$')
             {
                 track[i] = 'T';
-                adjacencyMatrix[Lblock1][Lblock2] = track;
-                adjacencyMatrix[Lblock2][Lblock1] = track;
             }
         }
+        adjacencyMatrix[Lblock1][Lblock2] = track;
+        adjacencyMatrix[Lblock2][Lblock1] = track;
     }
 
     // Mark available track segments adjacent to driver as O
@@ -223,174 +214,356 @@ int Grid::processConnection(vector<int> connection, int connectionnum)
             adjacencyMatrix[Dblock2][Dblock1] = track;
             // then put these track segments on FIFO Q
             expansionList.push({Dblock1, Dblock2, loadPin[2]});
+            costadjacencyMatrix[Dblock1][Dblock2] = 1;
+            costadjacencyMatrix[Dblock2][Dblock1] = 1;
         }
         if (track[i] == 'T')
         {
-            takeFirstTrackSegment(Dblock1, Dblock2, connectionnum + 1, currEven);
-            currEven += 2;
+            // cout << loadPin[2] << endl;
+            takeFirstTrackSegment(Dblock1, Dblock2, connectionnum + 1, i);
             cout << "(" << Dblock1 << "," << Dblock2 << ")" << endl;
-            return true;
+            return 1;
         }
     }
 
     int jBlock1, jBlock2, jcurrBlock;
     int jLabel;
-    while (!expansionList.empty())
+    bool breakExpansionList = false;
+    if (loadPin[2] == 1 || loadPin[2] == 3)
     {
-        // pop seg j from fifo
-        vector<int> segmentJ = expansionList.front();
-        // for each seg k that connects to j thru switch
-        vector<vector<int>> ksegs;
-        for (int i = 0; i < 2; i++)
+        for (int currEven = 0; currEven <= W; currEven += 2)
         {
-            jcurrBlock = segmentJ[i];
-            if ((jcurrBlock % (N + 1)) != 0)
-            { // check if along left column
-                if ((visited.find({jcurrBlock, jcurrBlock - 1}) != visited.end()) || visited.find({jcurrBlock - 1, jcurrBlock}) != visited.end())
-                {
-                }
-                else
-                {
-                    ksegs.push_back({jcurrBlock, jcurrBlock - 1});
-                    visited.insert({jcurrBlock, jcurrBlock - 1});
-                }
-            }
-            if (((jcurrBlock + 1) % (N + 1)) != 0)
-            { // check if along right column
-                if ((visited.find({jcurrBlock, jcurrBlock + 1}) != visited.end()) || visited.find({jcurrBlock + 1, jcurrBlock}) != visited.end())
-                {
-                }
-                else
-                {
-                    ksegs.push_back({jcurrBlock, jcurrBlock + 1});
-                    visited.insert({jcurrBlock, jcurrBlock + 1});
-                }
-            }
-            if (jcurrBlock > (N + 1))
-            { // check if along bottom row
-                if ((visited.find({jcurrBlock, jcurrBlock - (N + 1)}) != visited.end()) || visited.find({jcurrBlock - (N + 1), jcurrBlock}) != visited.end())
-                {
-                }
-                else
-                {
-                    ksegs.push_back({jcurrBlock, jcurrBlock - (N + 1)});
-                    visited.insert({jcurrBlock, jcurrBlock - (N + 1)});
-                }
-            }
-            if (jcurrBlock < ((N + 1) * N))
-            { // check if along top row
-                if ((visited.find({jcurrBlock, jcurrBlock + (N + 1)}) != visited.end()) || visited.find({jcurrBlock + (N + 1), jcurrBlock}) != visited.end())
-                {
-                }
-                else
-                {
-                    ksegs.push_back({jcurrBlock, jcurrBlock + (N + 1)});
-                    visited.insert({jcurrBlock, jcurrBlock + (N + 1)});
-                }
-            }
-        }
-        for (auto k : ksegs)
-        {
-            if (!((k[0] == segmentJ[0] && k[1] == segmentJ[1]) || (k[0] == segmentJ[1] && k[1] == segmentJ[0])))
+            breakExpansionList = false;
+            while (!expansionList.empty())
             {
-                parents[k[0]][k[1]] = make_pair(segmentJ[0], segmentJ[1]);
-                parents[k[1]][k[0]] = make_pair(segmentJ[0], segmentJ[1]);
-                if (loadPin[2] == 1 || loadPin[2] == 3)
+                if (breakExpansionList)
                 {
-
-                    if (adjacencyMatrix[k[0]][k[1]][currEven] == 'T')
-                    {
-                        // if k is target, exit while loop
-
-                        // loadpin[0],loadpin[1] = end pair
-                        // Lblock1, Lblock2 = end
-
-                        vector<pair<int, int>> path;
-                        pair<int, int> curr = {Lblock1, Lblock2};
-                        while (curr != make_pair(-1, -1))
+                    break;
+                }
+                // pop seg j from fifo
+                vector<int> segmentJ = expansionList.front();
+                // for each seg k that connects to j thru switch
+                vector<vector<int>> ksegs;
+                // expansion phase
+                for (int i = 0; i < 2; i++)
+                {
+                    jcurrBlock = segmentJ[i];
+                    if ((jcurrBlock % (N + 1)) != 0)
+                    { // check if along left column
+                        if ((visited.find({jcurrBlock, jcurrBlock - 1}) != visited.end()) || visited.find({jcurrBlock - 1, jcurrBlock}) != visited.end())
                         {
-                            // cout << curr.first << curr.second << endl;
-                            path.push_back(curr);
-                            if (curr == make_pair(Dblock1, Dblock2) || curr == make_pair(Dblock2, Dblock1))
+                        }
+                        else
+                        {
+                            if (adjacencyMatrix[jcurrBlock][jcurrBlock - 1][currEven] != 'X')
                             {
-                                break;
+                                ksegs.push_back({jcurrBlock, jcurrBlock - 1});
+                                visited.insert({jcurrBlock, jcurrBlock - 1});
                             }
-                            curr = parents[curr.first][curr.second];
                         }
-                        reverse(path.begin(), path.end());
-                        resetMatrix();
-                        for (const auto &p : path)
+                    }
+                    if (((jcurrBlock + 1) % (N + 1)) != 0)
+                    { // check if along right column
+                        if ((visited.find({jcurrBlock, jcurrBlock + 1}) != visited.end()) || visited.find({jcurrBlock + 1, jcurrBlock}) != visited.end())
                         {
-                            cout << "(" << p.first << ", " << p.second << ")" << endl;
-                            takeFirstTrackSegment(p.first, p.second, connectionnum, currEven);
                         }
-                        currEven += 2;
-                        return path.size();
+                        else
+                        {
+                            if (adjacencyMatrix[jcurrBlock][jcurrBlock + 1][currEven] != 'X')
+                            {
+                                ksegs.push_back({jcurrBlock, jcurrBlock + 1});
+                                visited.insert({jcurrBlock, jcurrBlock + 1});
+                            }
+                        }
                     }
-                    else if (adjacencyMatrix[k[0]][k[1]][currEven] == 'U' || isdigit(adjacencyMatrix[k[0]][k[1]][currEven]))
-                    {
-                        // else if k unavailable or already landed ignore
-                        continue;
+                    if (jcurrBlock > (N + 1))
+                    { // check if along bottom row
+                        if ((visited.find({jcurrBlock, jcurrBlock - (N + 1)}) != visited.end()) || visited.find({jcurrBlock - (N + 1), jcurrBlock}) != visited.end())
+                        {
+                        }
+                        else
+                        {
+                            if (adjacencyMatrix[jcurrBlock][jcurrBlock - (N + 1)][currEven] != 'X')
+                            {
+                                ksegs.push_back({jcurrBlock, jcurrBlock - (N + 1)});
+                                visited.insert({jcurrBlock, jcurrBlock - (N + 1)});
+                            }
+                        }
                     }
-                    else
-                    {
-                        // else
-                        // label k with label (j) +=1
-                        // put k on expansion list
-                        parents[k[0]][k[1]] = {segmentJ[0], segmentJ[1]};
-                        expansionList.push({k[0], k[1], segmentJ[2] + 1});
+                    if (jcurrBlock < ((N + 1) * N))
+                    { // check if along top row
+                        if ((visited.find({jcurrBlock, jcurrBlock + (N + 1)}) != visited.end()) || visited.find({jcurrBlock + (N + 1), jcurrBlock}) != visited.end())
+                        {
+                        }
+                        else
+                        {
+                            if (adjacencyMatrix[jcurrBlock][jcurrBlock + (N + 1)][currEven] != 'X')
+                            {
+                                ksegs.push_back({jcurrBlock, jcurrBlock + (N + 1)});
+                                visited.insert({jcurrBlock, jcurrBlock + (N + 1)});
+                            }
+                        }
                     }
                 }
-                else if (loadPin[2] == 2)
+                for (auto k : ksegs)
                 {
-                    if (adjacencyMatrix[k[0]][k[1]][currOdd] == 'T')
+                    if (!((k[0] == segmentJ[0] && k[1] == segmentJ[1]) || (k[0] == segmentJ[1] && k[1] == segmentJ[0])))
                     {
-                        // if k is target, exit while loop
-
-                        // loadpin[0],loadpin[1] = end pair
-                        // Lblock1, Lblock2 = end
-
-                        vector<pair<int, int>> path;
-                        pair<int, int> curr = {Lblock1, Lblock2};
-                        while (curr != make_pair(-1, -1))
+                        parents[k[0]][k[1]] = make_pair(segmentJ[0], segmentJ[1]);
+                        parents[k[1]][k[0]] = make_pair(segmentJ[0], segmentJ[1]);
+                        costadjacencyMatrix[k[0]][k[1]] = min(costadjacencyMatrix[k[0]][k[1]], costadjacencyMatrix[segmentJ[0]][segmentJ[1]] + 1);
+                        costadjacencyMatrix[k[1]][k[0]] = min(costadjacencyMatrix[k[1]][k[0]], costadjacencyMatrix[segmentJ[1]][segmentJ[0]] + 1);
+                        if (adjacencyMatrix[k[0]][k[1]][currEven] == 'T')
                         {
-                            // cout << curr.first << curr.second << endl;
-                            path.push_back(curr);
-                            if (curr == make_pair(Dblock1, Dblock2) || curr == make_pair(Dblock2, Dblock1))
+                            // if k is target, exit while loop
+                            breakExpansionList = true;
+                            break;
+                            // loadpin[0], loadpin[1] = end pair Lblock1, Lblock2 = end
+                        }
+                        // else if (adjacencyMatrix[k[0]][k[1]][currEven] == 'U' || isdigit(adjacencyMatrix[k[0]][k[1]][currEven]))
+                        else if (adjacencyMatrix[k[0]][k[1]][currEven] != '$')
+                        {
+                            // else if k unavailable or already landed ignore
+                            continue;
+                        }
+                        else
+                        {
+                            // else
+                            // label k with label (j) +=1
+                            // put k on expansion list
+                            parents[k[0]][k[1]] = {segmentJ[0], segmentJ[1]};
+                            expansionList.push({k[0], k[1], segmentJ[2] + 1});
+                        }
+                    }
+                }
+                expansionList.pop();
+            }
+            if (costadjacencyMatrix[Lblock1][Lblock2] != INT_MAX || costadjacencyMatrix[Lblock2][Lblock1] != INT_MAX)
+            {
+                int temp = min(costadjacencyMatrix[Lblock1][Lblock2], costadjacencyMatrix[Lblock2][Lblock1]);
+                if (temp < shortestcost)
+                {
+                    cout << currEven << endl;
+                    shortestcost = temp;
+                    tracknum = currEven;
+                    mincostadjacencyMatrix = costadjacencyMatrix;
+                    // cout << shortestcost << endl;
+                }
+            }
+        }
+    }
+    else if (loadPin[2] == 2)
+    {
+        for (int currOdd = 1; currOdd <= W; currOdd += 2)
+        {
+            breakExpansionList = false;
+            while (!expansionList.empty())
+            {
+                if (breakExpansionList)
+                {
+                    break;
+                }
+                // pop seg j from fifo
+                vector<int> segmentJ = expansionList.front();
+                // for each seg k that connects to j thru switch
+                vector<vector<int>> ksegs;
+                for (int i = 0; i < 2; i++)
+                {
+                    jcurrBlock = segmentJ[i];
+                    if ((jcurrBlock % (N + 1)) != 0)
+                    { // check if along left column
+                        if ((visited.find({jcurrBlock, jcurrBlock - 1}) != visited.end()) || visited.find({jcurrBlock - 1, jcurrBlock}) != visited.end())
+                        {
+                        }
+                        else
+                        {
+                            if (adjacencyMatrix[jcurrBlock][jcurrBlock - 1][currOdd] != 'X')
                             {
-                                break;
+                                ksegs.push_back({jcurrBlock, jcurrBlock - 1});
+                                visited.insert({jcurrBlock, jcurrBlock - 1});
                             }
-                            curr = parents[curr.first][curr.second];
                         }
-                        reverse(path.begin(), path.end());
-                        resetMatrix();
-                        for (const auto &p : path)
+                    }
+                    if (((jcurrBlock + 1) % (N + 1)) != 0)
+                    { // check if along right column
+                        if ((visited.find({jcurrBlock, jcurrBlock + 1}) != visited.end()) || visited.find({jcurrBlock + 1, jcurrBlock}) != visited.end())
                         {
-                            cout << "(" << p.first << ", " << p.second << ")" << endl;
-                            takeFirstTrackSegment(p.first, p.second, connectionnum, currOdd);
                         }
-                        currOdd += 2;
-                        return path.size();
+                        else
+                        {
+                            if (adjacencyMatrix[jcurrBlock][jcurrBlock + 1][currOdd] != 'X')
+                            {
+                                ksegs.push_back({jcurrBlock, jcurrBlock + 1});
+                                visited.insert({jcurrBlock, jcurrBlock + 1});
+                            }
+                        }
                     }
-                    else if (adjacencyMatrix[k[0]][k[1]][currOdd] == 'U' || isdigit(adjacencyMatrix[k[0]][k[1]][currOdd]))
-                    {
-                        // else if k unavailable or already landed ignore
-                        continue;
+                    if (jcurrBlock > (N + 1))
+                    { // check if along bottom row
+                        if ((visited.find({jcurrBlock, jcurrBlock - (N + 1)}) != visited.end()) || visited.find({jcurrBlock - (N + 1), jcurrBlock}) != visited.end())
+                        {
+                        }
+                        else
+                        {
+                            if (adjacencyMatrix[jcurrBlock][jcurrBlock - (N + 1)][currOdd] != 'X')
+                            {
+                                ksegs.push_back({jcurrBlock, jcurrBlock - (N + 1)});
+                                visited.insert({jcurrBlock, jcurrBlock - (N + 1)});
+                            }
+                        }
                     }
-                    else
+                    if (jcurrBlock < ((N + 1) * N))
+                    { // check if along top row
+                        if ((visited.find({jcurrBlock, jcurrBlock + (N + 1)}) != visited.end()) || visited.find({jcurrBlock + (N + 1), jcurrBlock}) != visited.end())
+                        {
+                        }
+                        else
+                        {
+                            if (adjacencyMatrix[jcurrBlock][jcurrBlock + (N + 1)][currOdd] != 'X')
+                            {
+                                ksegs.push_back({jcurrBlock, jcurrBlock + (N + 1)});
+                                visited.insert({jcurrBlock, jcurrBlock + (N + 1)});
+                            }
+                        }
+                    }
+                }
+                for (auto k : ksegs)
+                {
+                    if (!((k[0] == segmentJ[0] && k[1] == segmentJ[1]) || (k[0] == segmentJ[1] && k[1] == segmentJ[0])))
                     {
-                        // else
-                        // label k with label (j) +=1
-                        // put k on expansion list
-                        parents[k[0]][k[1]] = {segmentJ[0], segmentJ[1]};
-                        expansionList.push({k[0], k[1], segmentJ[2] + 1});
+                        parents[k[0]][k[1]] = make_pair(segmentJ[0], segmentJ[1]);
+                        parents[k[1]][k[0]] = make_pair(segmentJ[0], segmentJ[1]);
+                        costadjacencyMatrix[k[0]][k[1]] = min(costadjacencyMatrix[k[0]][k[1]], costadjacencyMatrix[segmentJ[0]][segmentJ[1]] + 1);
+                        costadjacencyMatrix[k[1]][k[0]] = min(costadjacencyMatrix[k[1]][k[0]], costadjacencyMatrix[segmentJ[1]][segmentJ[0]] + 1);
+                        if (adjacencyMatrix[k[0]][k[1]][currOdd] == 'T')
+                        {
+                            // if k is target, exit while loop
+                            breakExpansionList = true;
+                            break;
+                            // if k is target, exit while loop
+
+                            // loadpin[0],loadpin[1] = end pair
+                            // Lblock1, Lblock2 = end
+                        }
+                        // else if (adjacencyMatrix[k[0]][k[1]][currOdd] == 'U' || isdigit(adjacencyMatrix[k[0]][k[1]][currOdd]))
+                        else if (adjacencyMatrix[k[0]][k[1]][currOdd] != '$')
+                        {
+                            // else if k unavailable or already landed ignore
+                            continue;
+                        }
+                        else
+                        {
+                            // else
+                            // label k with label (j) +=1
+                            // put k on expansion list
+                            costadjacencyMatrix[k[0]][k[1]] = costadjacencyMatrix[segmentJ[0]][segmentJ[1]] + 1;
+                            parents[k[0]][k[1]] = {segmentJ[0], segmentJ[1]};
+                            expansionList.push({k[0], k[1], segmentJ[2] + 1});
+                        }
+                    }
+                }
+                expansionList.pop();
+            }
+            if (costadjacencyMatrix[Lblock1][Lblock2] != INT_MAX || costadjacencyMatrix[Lblock2][Lblock1] != INT_MAX)
+            {
+                int temp = min(costadjacencyMatrix[Lblock1][Lblock2], costadjacencyMatrix[Lblock2][Lblock1]);
+                if (temp < shortestcost)
+                {
+                    cout << currOdd << endl;
+                    shortestcost = temp;
+                    tracknum = currOdd;
+                    mincostadjacencyMatrix = costadjacencyMatrix;
+                }
+            }
+        }
+    }
+    if (shortestcost != INT_MAX)
+    {
+        vector<vector<int>> shortestpath;
+        int cost = shortestcost;
+        vector<int> currBlock = {Lblock1, Lblock2};
+        shortestpath.push_back({Lblock1, Lblock2});
+        cout << N + 1 << "--N" << endl;
+
+        // for (auto row : mincostadjacencyMatrix)
+        // {
+        //     for (auto val : row)
+        //     {
+        //         cout << val << " ";
+        //     }
+        //     cout << endl;
+        // }
+        while (cost != 1)
+        // for (int j = 0; j < 3; j++)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                jcurrBlock = currBlock[i];
+                // cout << mincostadjacencyMatrix[jcurrBlock][jcurrBlock + N + 1] << endl;
+                if ((jcurrBlock % (N + 1)) != 0)
+                { // check if along left column
+
+                    // if (adjacencyMatrix[jcurrBlock][jcurrBlock - 1][currOdd] != 'X')
+                    if (mincostadjacencyMatrix[jcurrBlock][jcurrBlock - 1] == (cost - 1) || mincostadjacencyMatrix[jcurrBlock - 1][jcurrBlock] == (cost - 1))
+                    {
+
+                        // cout << mincostadjacencyMatrix[jcurrBlock][jcurrBlock - 1] << "Left.." << jcurrBlock;
+                        shortestpath.push_back({jcurrBlock, jcurrBlock - 1});
+                        currBlock[i] -= 1;
+                        // cout << jcurrBlock << endl;
+                        cost--;
+                    }
+                }
+                if (((jcurrBlock + 1) % (N + 1)) != 0)
+                { // check if along right column
+                  // if (adjacencyMatrix[jcurrBlock][jcurrBlock + 1][currOdd] != 'X')
+                    if (mincostadjacencyMatrix[jcurrBlock][jcurrBlock + 1] == (cost - 1) || mincostadjacencyMatrix[jcurrBlock][jcurrBlock + 1] == (cost - 1))
+                    {
+                        // cout << mincostadjacencyMatrix[jcurrBlock][jcurrBlock + 1] << "Right.." << jcurrBlock;
+                        shortestpath.push_back({jcurrBlock, jcurrBlock + 1});
+                        currBlock[i] += 1;
+                        // cout << jcurrBlock << endl;
+                        cost--;
+                    }
+                }
+                if (jcurrBlock > (N + 1))
+                { // check if along bottom row
+                    // if (adjacencyMatrix[jcurrBlock][jcurrBlock - (N + 1)][currOdd] != 'X')
+                    if (mincostadjacencyMatrix[jcurrBlock][jcurrBlock - (N + 1)] == (cost - 1) || mincostadjacencyMatrix[jcurrBlock - (N - 1)][jcurrBlock] == (cost - 1))
+                    {
+                        // cout << mincostadjacencyMatrix[jcurrBlock][jcurrBlock - 1] << "down.." << jcurrBlock;
+                        shortestpath.push_back({jcurrBlock, jcurrBlock - (N + 1)});
+                        currBlock[i] -= (N + 1);
+                        // cout << jcurrBlock << endl;
+                        cost--;
+                    }
+                }
+
+                if (jcurrBlock < ((N + 1) * N))
+                { // check if along top row
+                  // if (adjacencyMatrix[jcurrBlock][jcurrBlock + (N + 1)][currOdd] != 'X')
+                    if (mincostadjacencyMatrix[jcurrBlock][jcurrBlock + (N + 1)] == (cost - 1) || mincostadjacencyMatrix[jcurrBlock + (N + 1)][jcurrBlock] == (cost - 1))
+                    {
+
+                        // cout << mincostadjacencyMatrix[jcurrBlock][jcurrBlock - 1] << "up.." << jcurrBlock;
+                        shortestpath.push_back({jcurrBlock, jcurrBlock + N + 1});
+                        currBlock[i] += (N + 1);
+                        // cout << jcurrBlock << endl;
+                        cost--;
                     }
                 }
             }
         }
-        expansionList.pop();
+        for (auto i : shortestpath)
+        {
+            takeFirstTrackSegment(i[0], i[1], connectionnum, tracknum);
+        }
+        return shortestcost;
     }
-    return -1;
+    else
+    {
+        return -1;
+    }
 }
 
 /*
@@ -414,8 +587,9 @@ void Grid::mazeRouter()
                 throw runtime_error("Connection could not route");
             }
             totalsegments += success;
-            cout << "connection " << i << ", was successfully made." << endl;
+            cout << "connection " << i << ", (" << i_connections[i][0] << i_connections[i][1] << "|" << success << ", was successfully made." << endl;
             i++;
+            resetMatrix();
         }
         catch (runtime_error e)
         {
@@ -424,8 +598,6 @@ void Grid::mazeRouter()
             i_connections.erase(i_connections.begin() + i);
             i_connections.insert(i_connections.begin(), failedConn);
             i = 0;
-            currEven = 0;
-            currOdd = 1;
             completeResetMatrix();
         }
     }
@@ -460,7 +632,7 @@ void Grid::completeResetMatrix()
             {
                 if (adjacencyMatrix[i][j][x] != 'X')
                 {
-                    adjacencyMatrix[i][j][x] = '$';
+                    Grid::adjacencyMatrix[i][j] = string(W, '$');
                 }
             }
         }

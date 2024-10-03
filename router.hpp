@@ -34,8 +34,8 @@ public:
     int W;                                       // W Channels
     std::vector<std::vector<int>> i_connections; // input connections
 
-    int currEven = 0;
-    int currOdd = 1;
+    // int currEven = 0;
+    // int currOdd = 1;
 
     // Methods
     void initializeGraph();
