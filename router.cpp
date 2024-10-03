@@ -6,67 +6,34 @@
 #include <vector>
 #include <string>
 #include <queue>
-
+#include <unordered_set>
+#include <set>
+#include <algorithm>
+#include "router.hpp"
 using namespace ::std;
 
-class Grid
-// Graph D.S. to represent tracks
-{
-public:
-    vector<vector<string>> adjacencyMatrix; // adjacency matrix for track segments
-    /*
-        No Connection - 'X'
-        Connection but unused (Available) - 'A'
-        Connection and used (Unavailable) - 'U'
-        Target of search/expansion - 'T'
-        Available and adjacent to driver - 'O'
-    */
-    int N;                             // NxN grid (N Vertices)
-    int W;                             // W Channels
-    vector<vector<int>> i_connections; // input connections
+// int main()
+// {
+//     Grid g;
 
-    void initializeGraph();
-    void takeTrackSegment(int block1x, int block1y, int block2x, int block2y, int tracknum);
-    void takeTrackSegment(int block1, int block2, int tracknum);
-    void processFile(const string &path);
-    bool processConnection(vector<int> connection, int connectionnum);
-    void mazeRouter();
-    void resetMatrix();
-    void printInputFile();
-    void printMatrix();
-};
+//     g.processFile("/Users/theebankumaresan/Documents/School/ECE1387/lab1/tests/cct1.txt");
 
-int main()
-{
-    Grid g;
+//     g.initializeGraph();
 
-    g.processFile("/Users/theebankumaresan/Documents/School/ECE1387/lab1/tests/cct1.txt");
+//     g.printMatrix();
+//     g.mazeRouter();
+//     cout << "----------" << endl;
+//     g.printMatrix();
 
-    g.printInputFile();
-
-    g.initializeGraph();
-
-    // g.takeTrackSegment(0,0,0,1,3);
-
-    // g.processConnection(g.i_connections[0]);
-
-    g.printMatrix();
-    g.mazeRouter();
-    cout << "----------" << endl;
-
-    g.printMatrix();
-    g.resetMatrix();
-    cout << "----------" << endl;
-    g.printMatrix();
-
-    return 0;
-}
+//     return 0;
+// }
 
 void Grid::initializeGraph()
 {
     // Initialize empty adjacency matrix with no connections between nodes
     int numSwitchBoxes = ((N + 1)) * ((N + 1));
     adjacencyMatrix.resize(numSwitchBoxes, vector<string>(numSwitchBoxes, "X"));
+    costadjacencyMatrix.resize(numSwitchBoxes, vector<int>(numSwitchBoxes, 0));
     // connect switch boxes in square pattern
     for (int i = 0; i <= N; i++)
     {
@@ -77,29 +44,29 @@ void Grid::initializeGraph()
             if (j > 0)
             {
                 int left = curr - 1;
-                adjacencyMatrix[curr][left] = string(W, 'A');
-                adjacencyMatrix[left][curr] = string(W, 'A');
+                adjacencyMatrix[curr][left] = string(W, '$');
+                adjacencyMatrix[left][curr] = string(W, '$');
             }
             // right connection
             if (j < N)
             {
                 int right = curr + 1;
-                adjacencyMatrix[curr][right] = string(W, 'A');
-                adjacencyMatrix[right][curr] = string(W, 'A');
+                adjacencyMatrix[curr][right] = string(W, '$');
+                adjacencyMatrix[right][curr] = string(W, '$');
             }
             // bottom connection
             if (i < N)
             {
                 int bot = curr - N - 1;
-                adjacencyMatrix[curr][bot] = string(W, 'A');
-                adjacencyMatrix[bot][curr] = string(W, 'A');
+                adjacencyMatrix[curr][bot] = string(W, '$');
+                adjacencyMatrix[bot][curr] = string(W, '$');
             }
             // top connection
             if (i > 0)
             {
                 int top = curr + N + 1;
-                adjacencyMatrix[curr][top] = string(W, 'A');
-                adjacencyMatrix[top][curr] = string(W, 'A');
+                adjacencyMatrix[curr][top] = string(W, '$');
+                adjacencyMatrix[top][curr] = string(W, '$');
             }
         }
     }
@@ -123,11 +90,18 @@ void Grid::takeTrackSegment(int block1x, int block1y, int block2x, int block2y, 
     adjacencyMatrix[block2][block1] = temp;
 }
 
-void Grid::takeTrackSegment(int block1, int block2, int tracknum)
+void Grid::takeFirstTrackSegment(int block1, int block2, int connectionNum, int segmentNum)
 {
     string temp = adjacencyMatrix[block1][block2];
-    temp[tracknum - 1] = 'U';
-
+    // for (int i = 0; i < temp.length(); i++)
+    // {
+    //     if (temp[i] == '$')
+    //     {
+    //         temp[i] = '0' + connectionNum;
+    //         break;
+    //     }
+    // }
+    temp[segmentNum] = '0' + connectionNum;
     adjacencyMatrix[block1][block2] = temp;
     adjacencyMatrix[block2][block1] = temp;
 }
@@ -165,11 +139,21 @@ void Grid::processFile(const string &path)
     infile.close();
 }
 
-bool Grid::processConnection(vector<int> connection, int connectionnum)
+int Grid::processConnection(vector<int> connection, int connectionnum)
 {
+    if (currEven > W)
+    {
+        return -1;
+    }
+    if (currOdd > W)
+    {
+        return -1;
+    }
     vector<int> driverPin = {connection[0], connection[1], connection[2]};
     vector<int> loadPin = {connection[3], connection[4], connection[5]};
     queue<vector<int>> expansionList = queue<vector<int>>(); // {Block1, Block2, cost}
+    set<vector<int>> visited = set<vector<int>>();
+    vector<vector<pair<int, int>>> parents((N + 1) * (N + 1), vector<pair<int, int>>((N + 1) * (N + 1), {-1, -1}));
     string track;
     // mark available track segments adjacent to load as 'T'
     /*
@@ -178,36 +162,37 @@ bool Grid::processConnection(vector<int> connection, int connectionnum)
         Switch box to the bottom left of block would have same x,y coords as the connection block
 
     */
-    cout << loadPin[0] << ", " << loadPin[1] << ", " << (loadPin[1]) * (N + 1) + loadPin[0] << endl;
 
-    int block1, block2;
+    int Lblock1, Lblock2;
+    int Dblock1, Dblock2;
     if (loadPin[2] == 1)
     { // Check down track
-        block1 = ((loadPin[1]) * (N + 1)) + loadPin[0];
-        block2 = ((loadPin[1]) * (N + 1)) + loadPin[0] + 1;
-        track = adjacencyMatrix[block1][block2];
+        Lblock1 = ((loadPin[1]) * (N + 1)) + loadPin[0];
+        Lblock2 = ((loadPin[1]) * (N + 1)) + loadPin[0] + 1;
+        track = adjacencyMatrix[Lblock1][Lblock2];
     }
     else if (loadPin[2] == 2)
     { // Check left track
-        block1 = ((loadPin[1]) * (N + 1)) + loadPin[0];
-        block2 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0];
-        track = adjacencyMatrix[block1][block2];
+        Lblock1 = ((loadPin[1]) * (N + 1)) + loadPin[0];
+        Lblock2 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0];
+        track = adjacencyMatrix[Lblock1][Lblock2];
     }
     else if (loadPin[2] == 3)
     { // Check up track
-        block1 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0];
-        block2 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0] + 1;
-        track = adjacencyMatrix[block1][block2];
+        Lblock1 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0];
+        Lblock2 = ((loadPin[1] + 1) * (N + 1)) + loadPin[0] + 1;
+        track = adjacencyMatrix[Lblock1][Lblock2];
     }
+
     if (loadPin[2] == 2)
     { // Pin can only connect to W/2 odd tracks(1,3,5,etc);
         for (int i = 1; i < track.length(); i += 2)
         {
-            if (track[i] == 'A')
+            if (track[i] == '$')
             {
                 track[i] = 'T';
-                adjacencyMatrix[block1][block2] = track;
-                adjacencyMatrix[block2][block1] = track;
+                adjacencyMatrix[Lblock1][Lblock2] = track;
+                adjacencyMatrix[Lblock2][Lblock1] = track;
             }
         }
     }
@@ -215,29 +200,39 @@ bool Grid::processConnection(vector<int> connection, int connectionnum)
     { // Pins 1 and 3 can only connect to W/2 even tracks(0,2,4,etc);
         for (int i = 0; i < track.length(); i += 2)
         {
-            if (track[i] == 'A')
+            if (track[i] == '$')
             {
                 track[i] = 'T';
-                adjacencyMatrix[block1][block2] = track;
-                adjacencyMatrix[block2][block1] = track;
+                adjacencyMatrix[Lblock1][Lblock2] = track;
+                adjacencyMatrix[Lblock2][Lblock1] = track;
             }
         }
     }
+
     // Mark available track segments adjacent to driver as O
-    block1 = ((driverPin[0]) * (N + 1)) + driverPin[1] + 1;
-    block2 = ((driverPin[0] + 1) * (N + 1)) + driverPin[1] + 1;
-    track = adjacencyMatrix[block1][block2];
+    Dblock1 = ((driverPin[1]) * (N + 1)) + driverPin[0] + 1;
+    Dblock2 = ((driverPin[1] + 1) * (N + 1)) + driverPin[0] + 1;
+    // visited.insert({Dblock1, Dblock2});
+    track = adjacencyMatrix[Dblock1][Dblock2];
     for (int i = 0; i < track.length(); i++)
     {
-        if (track[i] == 'A')
+        if (track[i] == '$')
         {
             track[i] = 'O';
-            adjacencyMatrix[block1][block2] = track;
-            adjacencyMatrix[block2][block1] = track;
+            adjacencyMatrix[Dblock1][Dblock2] = track;
+            adjacencyMatrix[Dblock2][Dblock1] = track;
             // then put these track segments on FIFO Q
-            expansionList.push({block1, block2, 0});
+            expansionList.push({Dblock1, Dblock2, loadPin[2]});
+        }
+        if (track[i] == 'T')
+        {
+            takeFirstTrackSegment(Dblock1, Dblock2, connectionnum + 1, currEven);
+            currEven += 2;
+            cout << "(" << Dblock1 << "," << Dblock2 << ")" << endl;
+            return true;
         }
     }
+
     int jBlock1, jBlock2, jcurrBlock;
     int jLabel;
     while (!expansionList.empty())
@@ -251,84 +246,191 @@ bool Grid::processConnection(vector<int> connection, int connectionnum)
             jcurrBlock = segmentJ[i];
             if ((jcurrBlock % (N + 1)) != 0)
             { // check if along left column
-                ksegs.push_back({jcurrBlock, jcurrBlock - 1});
+                if ((visited.find({jcurrBlock, jcurrBlock - 1}) != visited.end()) || visited.find({jcurrBlock - 1, jcurrBlock}) != visited.end())
+                {
+                }
+                else
+                {
+                    ksegs.push_back({jcurrBlock, jcurrBlock - 1});
+                    visited.insert({jcurrBlock, jcurrBlock - 1});
+                }
             }
             if (((jcurrBlock + 1) % (N + 1)) != 0)
             { // check if along right column
-                ksegs.push_back({jcurrBlock, jcurrBlock + 1});
+                if ((visited.find({jcurrBlock, jcurrBlock + 1}) != visited.end()) || visited.find({jcurrBlock + 1, jcurrBlock}) != visited.end())
+                {
+                }
+                else
+                {
+                    ksegs.push_back({jcurrBlock, jcurrBlock + 1});
+                    visited.insert({jcurrBlock, jcurrBlock + 1});
+                }
             }
             if (jcurrBlock > (N + 1))
             { // check if along bottom row
-                ksegs.push_back({jcurrBlock, jcurrBlock - (N + 1)});
+                if ((visited.find({jcurrBlock, jcurrBlock - (N + 1)}) != visited.end()) || visited.find({jcurrBlock - (N + 1), jcurrBlock}) != visited.end())
+                {
+                }
+                else
+                {
+                    ksegs.push_back({jcurrBlock, jcurrBlock - (N + 1)});
+                    visited.insert({jcurrBlock, jcurrBlock - (N + 1)});
+                }
             }
-            if (jcurrBlock <= ((N + 1) * N))
+            if (jcurrBlock < ((N + 1) * N))
             { // check if along top row
-                ksegs.push_back({jcurrBlock, jcurrBlock + (N + 1)});
+                if ((visited.find({jcurrBlock, jcurrBlock + (N + 1)}) != visited.end()) || visited.find({jcurrBlock + (N + 1), jcurrBlock}) != visited.end())
+                {
+                }
+                else
+                {
+                    ksegs.push_back({jcurrBlock, jcurrBlock + (N + 1)});
+                    visited.insert({jcurrBlock, jcurrBlock + (N + 1)});
+                }
             }
         }
         for (auto k : ksegs)
         {
-            for (int i = 0; i < adjacencyMatrix[k[0]][k[1]].size(); i++)
+            if (!((k[0] == segmentJ[0] && k[1] == segmentJ[1]) || (k[0] == segmentJ[1] && k[1] == segmentJ[0])))
             {
-                if (adjacencyMatrix[k[0]][k[1]][i] == 'T')
+                parents[k[0]][k[1]] = make_pair(segmentJ[0], segmentJ[1]);
+                parents[k[1]][k[0]] = make_pair(segmentJ[0], segmentJ[1]);
+                if (loadPin[2] == 1 || loadPin[2] == 3)
                 {
-                    cout << k[0] << "," << k[1] << endl;
-                    // if k is target, exit while loop
-                    return true;
+
+                    if (adjacencyMatrix[k[0]][k[1]][currEven] == 'T')
+                    {
+                        // if k is target, exit while loop
+
+                        // loadpin[0],loadpin[1] = end pair
+                        // Lblock1, Lblock2 = end
+
+                        vector<pair<int, int>> path;
+                        pair<int, int> curr = {Lblock1, Lblock2};
+                        while (curr != make_pair(-1, -1))
+                        {
+                            // cout << curr.first << curr.second << endl;
+                            path.push_back(curr);
+                            if (curr == make_pair(Dblock1, Dblock2) || curr == make_pair(Dblock2, Dblock1))
+                            {
+                                break;
+                            }
+                            curr = parents[curr.first][curr.second];
+                        }
+                        reverse(path.begin(), path.end());
+                        resetMatrix();
+                        for (const auto &p : path)
+                        {
+                            cout << "(" << p.first << ", " << p.second << ")" << endl;
+                            takeFirstTrackSegment(p.first, p.second, connectionnum, currEven);
+                        }
+                        currEven += 2;
+                        return path.size();
+                    }
+                    else if (adjacencyMatrix[k[0]][k[1]][currEven] == 'U' || isdigit(adjacencyMatrix[k[0]][k[1]][currEven]))
+                    {
+                        // else if k unavailable or already landed ignore
+                        continue;
+                    }
+                    else
+                    {
+                        // else
+                        // label k with label (j) +=1
+                        // put k on expansion list
+                        parents[k[0]][k[1]] = {segmentJ[0], segmentJ[1]};
+                        expansionList.push({k[0], k[1], segmentJ[2] + 1});
+                    }
                 }
-                else if (adjacencyMatrix[k[0]][k[1]][i] == 'U' || isdigit(adjacencyMatrix[k[0]][k[1]][i]))
+                else if (loadPin[2] == 2)
                 {
-                    // else if k unavailable or already landed ignore
-                    continue;
-                }
-                else
-                {
-                    // else
-                    // label k with label (j) +=1
-                    // jLabel = segmentJ[2];
-                    // put k on expansion list
-                    expansionList.push({k[0], k[1], segmentJ[2] + 1});
-                    // adjacencyMatrix[k[0]][k[1]][i] = segmentJ[2] + 1;
+                    if (adjacencyMatrix[k[0]][k[1]][currOdd] == 'T')
+                    {
+                        // if k is target, exit while loop
+
+                        // loadpin[0],loadpin[1] = end pair
+                        // Lblock1, Lblock2 = end
+
+                        vector<pair<int, int>> path;
+                        pair<int, int> curr = {Lblock1, Lblock2};
+                        while (curr != make_pair(-1, -1))
+                        {
+                            // cout << curr.first << curr.second << endl;
+                            path.push_back(curr);
+                            if (curr == make_pair(Dblock1, Dblock2) || curr == make_pair(Dblock2, Dblock1))
+                            {
+                                break;
+                            }
+                            curr = parents[curr.first][curr.second];
+                        }
+                        reverse(path.begin(), path.end());
+                        resetMatrix();
+                        for (const auto &p : path)
+                        {
+                            cout << "(" << p.first << ", " << p.second << ")" << endl;
+                            takeFirstTrackSegment(p.first, p.second, connectionnum, currOdd);
+                        }
+                        currOdd += 2;
+                        return path.size();
+                    }
+                    else if (adjacencyMatrix[k[0]][k[1]][currOdd] == 'U' || isdigit(adjacencyMatrix[k[0]][k[1]][currOdd]))
+                    {
+                        // else if k unavailable or already landed ignore
+                        continue;
+                    }
+                    else
+                    {
+                        // else
+                        // label k with label (j) +=1
+                        // put k on expansion list
+                        parents[k[0]][k[1]] = {segmentJ[0], segmentJ[1]};
+                        expansionList.push({k[0], k[1], segmentJ[2] + 1});
+                    }
                 }
             }
         }
         expansionList.pop();
     }
-    return false;
-
-    /*
-        If while loop ends without target hit:
-            - some connection could not route -> can try again with problem connection moved to front of list
-            - rip up and re-route
-    */
+    return -1;
 }
+
+/*
+    If while loop ends without target hit:
+        - some connection could not route -> can try again with problem connection moved to front of list
+        - rip up and re-route
+*/
 
 void Grid::mazeRouter()
 {
     int i = 0;
+    int totalsegments = 0;
     while (i < i_connections.size())
     {
-        cout << i_connections[i][0] << i_connections[i][1] << i_connections.size() << endl;
-        initializeGraph();
+        // cout << i_connections[i][0] << i_connections[i][1] << i_connections.size() << endl;
         try
         {
-            bool success = processConnection(i_connections[i], i);
-            if (!success)
+            int success = processConnection(i_connections[i], i);
+            if (success == -1)
             {
                 throw runtime_error("Connection could not route");
             }
+            totalsegments += success;
             cout << "connection " << i << ", was successfully made." << endl;
-            return;
             i++;
         }
         catch (runtime_error e)
         {
+            cout << "connection " << i << ", (" << i_connections[i][0] << i_connections[i][1] << ") was unsuccessfully made." << endl;
             vector<int> failedConn = i_connections[i];
             i_connections.erase(i_connections.begin() + i);
             i_connections.insert(i_connections.begin(), failedConn);
             i = 0;
+            currEven = 0;
+            currOdd = 1;
+            completeResetMatrix();
         }
     }
+    cout << to_string(totalsegments) << " total segments were made." << endl;
+    resetMatrix();
 }
 
 void Grid::resetMatrix()
@@ -339,15 +441,27 @@ void Grid::resetMatrix()
         {
             for (int x = 0; x < adjacencyMatrix[i][j].size(); x++)
             {
-                if (adjacencyMatrix[i][j][x] == 'X')
+                if (adjacencyMatrix[i][j][x] == 'T' || adjacencyMatrix[i][j][x] == 'O')
                 {
-                    continue;
+                    adjacencyMatrix[i][j][x] = '$';
                 }
-                if (adjacencyMatrix[i][j][x] == 'U')
+            }
+        }
+    }
+}
+
+void Grid::completeResetMatrix()
+{
+    for (int i = 0; i < adjacencyMatrix.size(); i++)
+    {
+        for (int j = 0; j < adjacencyMatrix[i].size(); j++)
+        {
+            for (int x = 0; x < adjacencyMatrix[i][j].size(); x++)
+            {
+                if (adjacencyMatrix[i][j][x] != 'X')
                 {
-                    continue;
+                    adjacencyMatrix[i][j][x] = '$';
                 }
-                adjacencyMatrix[i][j][x] = 'A';
             }
         }
     }
@@ -378,3 +492,24 @@ void Grid::printMatrix()
         cout << endl;
     }
 }
+
+/*
+
+X 3$ X X $$ X X X X X X X X X X X
+3$ X $$ X X 13 X X X X X X X X X X
+X $$ X $$ X X $$ X X X X X X X X X
+X X $$ X X X X $$ X X X X X X X X
+$$ X X X X 2$ X X $$ X X X X X X X
+X 13 X X 2$ X 2$ X X 13 X X X X X X
+X X $$ X X 2$ X $$ X X 2$ X X X X X
+X X X $$ X X $$ X X X X $$ X X X X
+X X X X $$ X X X X $$ X X $$ X X X
+X X X X X 13 X X $$ X 1$ X X 3$ X X
+X X X X X X 2$ X X 1$ X 1$ X X $$ X
+X X X X X X X $$ X X 1$ X X X X 1$
+X X X X X X X X $$ X X X X $$ X X
+X X X X X X X X X 3$ X X $$ X $$ X
+X X X X X X X X X X $$ X X $$ X $$
+X X X X X X X X X X X 1$ X X $$ X
+
+*/
