@@ -21,7 +21,7 @@ class Grid
 public:
     // Graph D.S. to represent tracks
     std::vector<std::vector<std::string>> adjacencyMatrix; // adjacency matrix for track segments
-    std::vector<std::vector<int>> costadjacencyMatrix;
+    std::vector<std::vector<std::vector<int>>> costadjacencyMatrix;
 
     /*
         No Connection - 'X'
@@ -34,8 +34,13 @@ public:
     int W;                                       // W Channels
     std::vector<std::vector<int>> i_connections; // input connections
 
-    // int currEven = 0;
-    // int currOdd = 1;
+    // Swappable Input specifics
+    std::vector<std::vector<int>> i_orientations;
+    /*
+        i_orientations[0] = 1 connection on a1 paper or down direction
+        i_orientations[1] = 2 connection on a1 paper or left direction
+        i_orientations[2] = 3 connection on a1 paper or up direction
+    */
 
     // Methods
     void initializeGraph();
@@ -43,7 +48,12 @@ public:
     void takeFirstTrackSegment(int block1, int block2, int connectionNum, int segmentNum);
     void processFile(const std::string &path);
     int processConnection(std::vector<int> connection, int connectionnum);
+    std::vector<int> si_processConnection(std::vector<int> connection, int connectionnum);
+    int si_processConnectionWrapper(std::vector<int> connection, int connectionnum);
+    void si_resetConnection(int connectionnum);
     void mazeRouter();
+    void si_mazeRouter();
+    void si_initializeOrientations();
     void resetMatrix();
     void completeResetMatrix();
     void printInputFile();

@@ -56,7 +56,7 @@ void act_on_key_press(ezgl::application *application, GdkEventKey * /*event*/, c
 // main drawing functions
 void draw_logic_blocks(ezgl::renderer *g, int numBlocks, std::vector<std::vector<int>> i_connections);
 void draw_switch_blocks(ezgl::renderer *g, int numBlocks);
-void draw_wires(ezgl::renderer *g, int W, int numBlocks, std::vector<std::vector<std::string>> adjacencyMatrix);
+void draw_wires(ezgl::renderer *g, int W, int numBlocks, std::vector<std::vector<std::string>> adjacencyMatrix, std::vector<std::vector<int>> i_connections);
 
 // draw route
 void draw_connection(ezgl::renderer *g);
@@ -111,6 +111,7 @@ int main(int /*argc*/, char ** /*argv*/)
 
     g.initializeGraph();
     g.mazeRouter();
+    // g.si_mazeRouter();
     gridAdjacencyMatrix = g.adjacencyMatrix;
     connectionlist = g.i_connections;
 
@@ -134,7 +135,7 @@ int main(int /*argc*/, char ** /*argv*/)
 
 void draw_main_canvas(ezgl::renderer *g)
 {
-    draw_wires(g, gridW, gridN, gridAdjacencyMatrix);
+    draw_wires(g, gridW, gridN, gridAdjacencyMatrix, connectionlist);
     draw_switch_blocks(g, gridN);
     draw_logic_blocks(g, gridN, connectionlist);
 }
@@ -403,12 +404,22 @@ void draw_logic_blocks(ezgl::renderer *g, int numBlocks, std::vector<std::vector
     {
         std::vector<int> connection = i_connections[i];
         std::vector<int> block1 = {connection[0], connection[1], connection[2]};
-        g->set_color(color_indicies[i]);
-        g->draw_line({400 + ((connection[0]) * 400), 300 + ((connection[1]) * 400)}, {600 + ((connection[0]) * 400), 300 + ((connection[1]) * 400)});
-
         std::vector<int> block2 = {connection[3], connection[4], connection[5]};
+        g->set_color(color_indicies[(i - 1) % (i_connections.size() - 1) + 1]);
+        g->draw_line({400 + ((connection[0]) * 400), 300 + ((connection[1]) * 400)}, {600 + ((connection[0]) * 400), 300 + ((connection[1]) * 400)});
+        if (connection[5] == 3)
+        {
+            g->draw_line({380 + ((connection[3]) * 400), 280 + ((connection[4]) * 400)}, {380 + ((connection[3]) * 400), 480 + ((connection[4]) * 400)});
+        }
+        else if (connection[5] == 2)
+        {
+            g->draw_line({400 + ((connection[3]) * 400), 260 + ((connection[4]) * 400)}, {200 + ((connection[3]) * 400), 260 + ((connection[4]) * 400)});
+        }
+        else if (connection[5] == 1)
+        {
+            g->draw_line({420 + ((connection[3]) * 400), 280 + ((connection[4]) * 400)}, {420 + ((connection[3]) * 400), 80 + ((connection[4]) * 400)});
+        }
     }
-    // g->draw_line({250 + (j * 400), (30 + (i * 400))}, {550 + (j * 400), (30 + (i * 400))});
 }
 
 void draw_switch_blocks(ezgl::renderer *g, int numBlocks)
@@ -426,7 +437,7 @@ void draw_switch_blocks(ezgl::renderer *g, int numBlocks)
     }
 }
 
-void draw_wires(ezgl::renderer *g, int W, int numBlocks, std::vector<std::vector<std::string>> adjacencyMatrix)
+void draw_wires(ezgl::renderer *g, int W, int numBlocks, std::vector<std::vector<std::string>> adjacencyMatrix, std::vector<std::vector<int>> i_connections)
 {
     g->set_font_size(10);
     g->set_line_width(2);
@@ -477,7 +488,7 @@ void draw_wires(ezgl::renderer *g, int W, int numBlocks, std::vector<std::vector
                 }
                 else
                 {
-                    g->set_color(color_indicies[temp[k] - '0']);
+                    g->set_color(color_indicies[((temp[k] - '0') - 1) % (i_connections.size() - 1) + 1]);
                 }
                 g->draw_line({250 + (j * 400), (30 + (i * 400)) + (k * wireSeparation)}, {550 + (j * 400), (30 + (i * 400)) + (k * wireSeparation)});
             }
@@ -499,7 +510,7 @@ void draw_wires(ezgl::renderer *g, int W, int numBlocks, std::vector<std::vector
                 }
                 else
                 {
-                    g->set_color(color_indicies[temp[k] - '0']);
+                    g->set_color(color_indicies[((temp[k] - '0') - 1) % (i_connections.size() - 1) + 1]);
                 }
                 g->draw_line({(150 + (i * 400)) + (k * wireSeparation), 130 + (j * 400)}, {(150 + (i * 400)) + (k * wireSeparation), 430 + (j * 400)});
             }
