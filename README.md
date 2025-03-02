@@ -1,3 +1,6 @@
+# For the Analytical Placer:
+
+https://github.com/theebank/Analytical-Placer/tree/main
 
 # To run:
 Unzip the folder
